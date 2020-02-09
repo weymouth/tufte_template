@@ -1,0 +1,54 @@
+stages:
+  - test
+  - deploy
+
+variables:
+  # override DEPOT_PATH to install packages in the project
+  # folder, because gitlab can only cache files whthin it
+  JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia"
+cache:
+  paths:
+    - $JULIA_DEPOT_PATH
+
+# To initialize submodules you need to set variables
+# GIT_SUBMODULE_STRATEGY=recursive
+# in gitlab CI/CD page
+before_script:
+  - cd style &&
+    python3 setup.py install &&
+    cd ..
+  - cd lexer &&
+    python3 setup.py install &&
+    cd ..
+  # install julia dependency
+  - julia -e 'using Pkg; Pkg.add("jlpkg")' &&
+    julia -e 'import jlpkg; jlpkg.install(destdir="/usr/local/bin")' &&
+    jlpkg --project=@. add $(cat REQUIRE | grep -v julia)
+
+.test_template: &test_definition
+  script:
+    - make test
+
+Julia 1.0:
+  image: johnnychen94/juliabook:1.0
+  stage: test
+  <<: *test_definition
+
+Julia 1.1:
+  image: johnnychen94/juliabook:1.1
+  stage: test
+  <<: *test_definition
+
+Julia 1.2:
+  image: johnnychen94/juliabook:1.2
+  stage: test
+  <<: *test_definition
+
+Deploy:
+  image: johnnychen94/juliabook:stable
+  stage: deploy
+  script:
+    - make compile
+  artifacts:
+    paths:
+      - "book.pdf"
